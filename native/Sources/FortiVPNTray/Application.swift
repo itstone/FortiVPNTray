@@ -272,14 +272,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.helperStatus = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true, version: AppIdentity.helperVersion)
         try? await Task.sleep(nanoseconds: 250_000_000)
         checks["settingsSnapshot"] = snapshot(window.contentView!, name: "settings")
-        let profileView = NSHostingView(rootView: ProfileEditor(model: model, profile: additional, onDone: {})
-            .padding(16).background(Color(white: 0.09)).preferredColorScheme(.dark)
-            .foregroundStyle(Color.white.opacity(0.88)))
+        model.settingsVisible = false
+        let profileView = NSHostingView(rootView: MainView(model: model, editing: additional))
         window.contentView = profileView
         try? await Task.sleep(nanoseconds: 250_000_000)
         checks["readOnlyProfileSnapshot"] = snapshot(profileView, name: "readonly-profile")
         model.activeID = nil
         model.phase = .disconnected
+        let editView = NSHostingView(rootView: MainView(model: model, editing: additional))
+        window.orderOut(nil)
+        window.contentView = editView
+        window.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        checks["editProfileSnapshot"] = snapshot(editView, name: "edit-profile")
         do {
             additional.name = "Updated VPN"
             try model.save(additional, password: "")

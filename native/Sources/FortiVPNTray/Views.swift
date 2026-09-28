@@ -44,6 +44,11 @@ struct MainView: View {
     @ObservedObject var model: AppModel
     @State private var editing: VPNProfile?
     @State private var aboutVisible = false
+    private var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown" }
+    init(model: AppModel, editing: VPNProfile? = nil) {
+        self.model = model
+        _editing = State(initialValue: editing)
+    }
     var body: some View {
         ZStack {
             Backdrop()
@@ -56,16 +61,14 @@ struct MainView: View {
                     SettingsView(model: model)
                 } else if aboutVisible {
                     about
+                } else if let profile = editing {
+                    ProfileEditor(model: model, profile: profile) { editing = nil }
+                        .id(profile.id).padding(16)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 } else {
                     ConnectionCard(model: model).padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 12)
-                    if let profile = editing {
-                        ProfileEditor(model: model, profile: profile) { editing = nil }
-                            .id(profile.id).padding(.horizontal, 16).padding(.bottom, 12)
-                            .frame(maxHeight: .infinity, alignment: .top)
-                    } else {
-                        profileList.padding(.horizontal, 16)
-                            .frame(maxHeight: .infinity, alignment: .top)
-                    }
+                    profileList.padding(.horizontal, 16)
+                        .frame(maxHeight: .infinity, alignment: .top)
                     footer
                 }
             }
@@ -151,7 +154,7 @@ struct MainView: View {
                 .help("Settings").accessibilityLabel("Settings")
             Button { aboutVisible = true } label: { Image(systemName: "info.circle") }
                 .help("About").accessibilityLabel("About")
-            Text("v0.2.0").font(.system(size: 11))
+            Text("v\(appVersion)").font(.system(size: 11))
         }
         .font(.system(size: 12)).buttonStyle(.plain).foregroundStyle(Color.white.opacity(0.4))
         .padding(.horizontal, 16).frame(height: 34)
@@ -178,7 +181,7 @@ struct MainView: View {
             Spacer()
             Image(systemName: "lock.shield.fill").font(.system(size: 48)).foregroundStyle(Appearance.blue)
             Text("FortiVPNTray").font(.title3.bold())
-            Text("Version 0.2.0 · Native Swift").foregroundStyle(Appearance.secondary)
+            Text("Version \(appVersion) · Native Swift").foregroundStyle(Appearance.secondary)
             Text("Based on OpenFortiVpn Connect by Wallacy Santos Ferreira. VPN engine: openfortivpn.")
                 .font(.callout).multilineTextAlignment(.center).foregroundStyle(Appearance.secondary)
             Link("View source on GitHub", destination: URL(string: "https://github.com/itstone/FortiVPNTray")!)
