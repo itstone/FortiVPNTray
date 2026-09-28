@@ -214,6 +214,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         fixture.name = "Example VPN"
         model.profiles = [fixture]; model.selectedID = fixture.id; model.activeID = fixture.id
         model.phase = .connected
+        var additional = VPNProfile()
+        additional.name = "Additional VPN"
+        additional.host = "vpn.example.com"
+        additional.authType = .saml
+        checks["connectedAllowsNewProfile"] = model.maySave(additional) && !model.mayEdit
+        do {
+            try model.save(additional, password: "")
+            checks["connectedProfileSaved"] = model.profiles.contains(additional)
+            checks["savePreservesSessionAndSelection"] = model.activeID == fixture.id && model.selectedID == fixture.id && model.phase == .connected
+            do {
+                try model.save(additional, password: "")
+                checks["connectedExistingProfileSaveBlocked"] = false
+            } catch { checks["connectedExistingProfileSaveBlocked"] = true }
+            model.delete(additional)
+            checks["connectedDeleteBlocked"] = model.profiles.contains(additional)
+            model.storageAvailable = false
+            var blocked = VPNProfile()
+            blocked.name = "Blocked VPN"; blocked.host = "blocked.example.com"
+            do {
+                try model.save(blocked, password: "")
+                checks["unavailableStorageBlocksCreate"] = false
+            } catch { checks["unavailableStorageBlocksCreate"] = !model.mayCreateProfile }
+            model.storageAvailable = true
+        } catch { checks["connectedProfileSaved"] = false }
         model.ip = "10.2.3.4"
         model.since = Date().addingTimeInterval(-65)
         model.downloadRate = 2048
@@ -248,6 +272,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.helperStatus = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true, version: AppIdentity.helperVersion)
         try? await Task.sleep(nanoseconds: 250_000_000)
         checks["settingsSnapshot"] = snapshot(window.contentView!, name: "settings")
+        let profileView = NSHostingView(rootView: ProfileEditor(model: model, profile: additional, onDone: {})
+            .padding(16).background(Color(white: 0.09)).preferredColorScheme(.dark)
+            .foregroundStyle(Color.white.opacity(0.88)))
+        window.contentView = profileView
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        checks["readOnlyProfileSnapshot"] = snapshot(profileView, name: "readonly-profile")
+        model.activeID = nil
+        model.phase = .disconnected
+        do {
+            additional.name = "Updated VPN"
+            try model.save(additional, password: "")
+            checks["disconnectedEditingAndSelectionRestored"] = model.mayEdit && model.selectedID == additional.id && model.profiles.contains(additional)
+        } catch { checks["disconnectedEditingAndSelectionRestored"] = false }
         let data = try! JSONSerialization.data(withJSONObject: checks, options: [.prettyPrinted, .sortedKeys])
         print(String(decoding: data, as: UTF8.self))
         fflush(stdout)

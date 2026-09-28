@@ -42,6 +42,10 @@ final class AppModel: ObservableObject {
     var selected: VPNProfile? { profiles.first { $0.id == selectedID } }
     var hasSession: Bool { activeID != nil }
     var mayEdit: Bool { !hasSession && storageAvailable }
+    var mayCreateProfile: Bool { storageAvailable }
+    func maySave(_ profile: VPNProfile) -> Bool {
+        profiles.contains { $0.id == profile.id } ? mayEdit : mayCreateProfile
+    }
 
     init(smokeTest: Bool = false) {
         self.smokeTest = smokeTest
@@ -57,7 +61,7 @@ final class AppModel: ObservableObject {
         if !smokeTest { refreshHelper() }
     }
     func save(_ profile: VPNProfile, password: String) throws {
-        guard mayEdit else { throw VPNError("Disconnect before editing profiles.") }
+        guard maySave(profile) else { throw VPNError("Cannot save this profile while connected or configuration storage is unavailable.") }
         let profile = try profile.validated()
         let previous = profiles
         var updated = profiles
@@ -71,7 +75,7 @@ final class AppModel: ObservableObject {
             throw error
         }
         profiles = updated
-        selectedID = profile.id
+        if !hasSession { selectedID = profile.id }
     }
     func delete(_ profile: VPNProfile) {
         guard mayEdit else { return }

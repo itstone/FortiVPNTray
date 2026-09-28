@@ -29,7 +29,7 @@ The build produces an ad-hoc signed `.app` and `native/dist/FortiVPNTray-native-
 - Password and SAML profiles, realms, certificate pinning, explicit automatic certificate trust, debug logs, DNS fallback, current traffic rates and totals are supported. Extra arguments use one argument per line; credential/configuration/DNS overrides are rejected to retain application control.
 - DNS supplied by the VPN takes precedence. If fallback is enabled and the VPN supplies no DNS servers, the captured system DNS servers are used.
 - Logs in the UI are bounded and redact credentials and URLs. The private temporary log is removed on successful disconnect or detected process exit. No raw log export is provided.
-- Configuration editing is disabled during a session; malformed configuration is preserved and reported rather than silently replaced.
+- New profiles can be saved during a session without changing the active or selected profile. Existing profiles can be opened read-only during a session; editing and deletion remain disabled; malformed configuration is preserved and reported rather than silently replaced.
 - The 400×560 dark single-column window contains a connection card, profile list / inline editor, and Logs / Settings / About footer. Password and SAML are side-by-side radio buttons. The connection card includes a 60-sample download/upload chart.
 - The tray opens a graphical popover sharing the main connection card: profile, VPN IP, live duration, green/orange traffic history, rates and totals. Connected uses a green filled checkmark shield; disconnected uses an outline shield. Opening the tray preserves Accessory mode. Counters and charts observe the same model as the main window.
 

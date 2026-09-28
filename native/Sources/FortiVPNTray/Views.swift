@@ -119,8 +119,8 @@ struct MainView: View {
                                     }.contentShape(Rectangle())
                                 }.buttonStyle(.plain).disabled(model.hasSession)
                                 Button { editing = profile } label: { Image(systemName: "gearshape").font(.system(size: 13)) }
-                                    .buttonStyle(.plain).foregroundStyle(Appearance.secondary).help("Edit profile")
-                                    .disabled(!model.mayEdit).accessibilityLabel("Edit \(profile.name)")
+                                    .buttonStyle(.plain).foregroundStyle(Appearance.secondary).help(model.mayEdit ? "Edit profile" : "View profile")
+                                    .accessibilityLabel("\(model.mayEdit ? "Edit" : "View") \(profile.name)")
                                 Image(systemName: model.selectedID == profile.id ? "largecircle.fill.circle" : "circle")
                                     .font(.system(size: 19)).foregroundStyle(model.selectedID == profile.id ? Appearance.blue : Color.white.opacity(0.2))
                                     .accessibilityLabel(model.selectedID == profile.id ? "Selected" : "Not selected")
@@ -136,7 +136,7 @@ struct MainView: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
                     .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.15), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
-            }.buttonStyle(.plain).disabled(!model.mayEdit)
+            }.buttonStyle(.plain).disabled(!model.mayCreateProfile)
             Spacer(minLength: 0)
         }
     }
@@ -289,14 +289,16 @@ struct ProfileEditor: View {
     @State private var error: String?
     @State private var confirmDelete = false
     private var isNew: Bool { !model.profiles.contains { $0.id == profile.id } }
+    private var isReadOnly: Bool { !isNew && !model.mayEdit }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                panelHeader(isNew ? "New Profile" : "Edit Profile", back: onDone)
-                if !isNew {
+                panelHeader(isNew ? "New Profile" : (isReadOnly ? "View Profile" : "Edit Profile"), back: onDone)
+                if !isNew && !isReadOnly {
                     Button("Delete") { confirmDelete = true }.buttonStyle(.plain).foregroundStyle(.red).font(.system(size: 12)).disabled(!model.mayEdit)
                 }
             }
+            if isReadOnly { Text(model.hasSession ? "Read-only. Disconnect to edit this profile." : "Read-only. Configuration storage is unavailable.").font(.system(size: 12)).foregroundStyle(Appearance.secondary) }
             if let error { Text(error).font(.system(size: 12)).foregroundStyle(.red) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
@@ -315,37 +317,39 @@ struct ProfileEditor: View {
                     }
                     if profile.authType == .password {
                         field("Username") { TextField("john.doe", text: Binding(get: { profile.username ?? "" }, set: { profile.username = $0 })).modifier(InputStyle()).accessibilityLabel("Username") }
-                        field("Password") { SecureField(isNew ? "Enter password" : "Leave empty to keep current", text: $password).modifier(InputStyle()).accessibilityLabel("Password") }
+                        field("Password") { SecureField(isReadOnly ? "Saved password is not displayed" : (isNew ? "Enter password" : "Leave empty to keep current"), text: $password).modifier(InputStyle()).accessibilityLabel("Password") }
                     } else {
                         Text("Sign in through your browser when you connect.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                     }
                     field("Realm (optional)") { TextField("optional", text: Binding(get: { profile.realm ?? "" }, set: { profile.realm = $0 })).modifier(InputStyle()).accessibilityLabel("Realm") }
-                    Toggle("Ignore certificate errors", isOn: $profile.ignoreCertErrors).font(.system(size: 12)).toggleStyle(.checkbox)
+                    Toggle("Ignore certificate errors", isOn: $profile.ignoreCertErrors).font(.system(size: 12)).toggleStyle(.checkbox).disabled(isReadOnly)
                     Text("Trusts whatever certificate the gateway presents. Only use on gateways you control.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                     DisclosureGroup("Trusted Certificates") {
                         Text("SHA256 fingerprints · one per line").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                         TextEditor(text: $certificates).font(.system(size: 11, design: .monospaced)).frame(height: 65)
-                            .scrollContentBackground(.hidden).modifier(InputStyle()).accessibilityLabel("Trusted certificates")
+                            .scrollContentBackground(.hidden).modifier(InputStyle()).accessibilityLabel("Trusted certificates").disabled(isReadOnly)
                     }.font(.system(size: 12))
                     DisclosureGroup("Advanced arguments") {
                         Text("One argument per line").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                         TextEditor(text: $extraArguments).font(.system(size: 11, design: .monospaced)).frame(height: 55)
-                            .scrollContentBackground(.hidden).modifier(InputStyle()).accessibilityLabel("Extra arguments")
+                            .scrollContentBackground(.hidden).modifier(InputStyle()).accessibilityLabel("Extra arguments").disabled(isReadOnly)
                     }.font(.system(size: 12))
                 }.padding(.trailing, 2)
             }
             HStack(spacing: 8) {
-                Button("Save") {
-                    do {
-                        guard let port = Int(portText), (1...65535).contains(port) else { throw VPNError("Enter a port between 1 and 65535.") }
-                        profile.port = port
-                        profile.trustedCerts = lines(certificates)
-                        profile.extraArgs = lines(extraArguments)
-                        try model.save(profile, password: password)
-                        onDone()
-                    } catch { self.error = error.localizedDescription }
-                }.buttonStyle(FilledButton()).keyboardShortcut(.defaultAction).disabled(!model.mayEdit)
-                Button("Cancel", action: onDone).buttonStyle(FilledButton(color: Color.white.opacity(0.1))).keyboardShortcut(.cancelAction)
+                if !isReadOnly {
+                    Button("Save") {
+                        do {
+                            guard let port = Int(portText), (1...65535).contains(port) else { throw VPNError("Enter a port between 1 and 65535.") }
+                            profile.port = port
+                            profile.trustedCerts = lines(certificates)
+                            profile.extraArgs = lines(extraArguments)
+                            try model.save(profile, password: password)
+                            onDone()
+                        } catch { self.error = error.localizedDescription }
+                    }.buttonStyle(FilledButton()).keyboardShortcut(.defaultAction).disabled(!model.maySave(profile))
+                }
+                Button(isReadOnly ? "Done" : "Cancel", action: onDone).buttonStyle(FilledButton(color: Color.white.opacity(0.1))).keyboardShortcut(.cancelAction)
             }
         }
         .onAppear { portText = String(profile.port); certificates = profile.trustedCerts.joined(separator: "\n"); extraArguments = profile.extraArgs.joined(separator: "\n") }
@@ -356,7 +360,7 @@ struct ProfileEditor: View {
     private func field<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.system(size: 11)).foregroundStyle(Appearance.secondary)
-            content()
+            content().disabled(isReadOnly)
         }
     }
     private func lines(_ text: String) -> [String] { text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
