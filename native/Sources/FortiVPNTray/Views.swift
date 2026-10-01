@@ -90,7 +90,9 @@ struct MainView: View {
                 }
             }.padding(20).frame(width: 340).preferredColorScheme(.dark)
         }
-        .alert("FortiVPNTray", isPresented: Binding(get: { model.error != nil && model.certificate == nil }, set: { if !$0 { model.error = nil } })) {
+        // Presenting an alert on a hidden NSWindow makes AppKit order it front.
+        // Keep tray errors pending until the user explicitly opens the window.
+        .alert("FortiVPNTray", isPresented: Binding(get: { model.mainWindowVisible && model.error != nil && model.certificate == nil }, set: { if !$0 && model.mainWindowVisible { model.error = nil } })) {
             Button("OK") { model.error = nil }
         } message: { Text(model.error ?? "") }
     }

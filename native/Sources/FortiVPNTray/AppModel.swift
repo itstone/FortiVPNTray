@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
     @Published var since: Date?
     @Published var logs: [String] = []
     @Published var error: String?
+    @Published var mainWindowVisible = false
     @Published var settings = AppSettings()
     @Published var helperStatus: HelperInstallationStatus?
     @Published var helperRefreshing = false

@@ -21,6 +21,7 @@ The build produces an ad-hoc signed `.app` and `native/dist/FortiVPNTray-native-
 ## Application behavior
 
 - Closing the main window switches the app to Accessory mode: no running Dock icon, but the status item and VPN remain. Open it from the menu bar to restore the window and Dock icon. Minimize retains normal macOS behavior.
+- Connection errors keep a hidden main window hidden. The tray offers a message-review action; opening the window displays the pending error.
 - Quit disconnects the current session before exiting. A failed disconnect keeps the application open with an actionable error.
 - Profiles, settings and Keychain passwords use `com.itstone.fortivpntray`.
 - Run one FortiVPNTray instance at a time. Do not connect multiple VPN clients concurrently: the helper manages system PPP interfaces, DNS and routes.

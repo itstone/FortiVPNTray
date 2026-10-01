@@ -82,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return true
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        model.mainWindowVisible = false
         sender.orderOut(nil)
         NSApp.setActivationPolicy(.accessory)
         return false
@@ -92,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         if window.isMiniaturized { window.deminiaturize(nil) }
         window.makeKeyAndOrderFront(nil)
+        model.mainWindowVisible = true
         NSApp.activate(ignoringOtherApps: true)
     }
     @objc private func openSettings() { showWindow(); model.settingsVisible = true }
@@ -190,6 +192,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return true
         } catch { return false }
     }
+    private func checkTrayConnectionErrors() async -> [String: Bool] {
+        var checks: [String: Bool] = [:]
+        model.phase = .connecting
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        checks["connectingFromTrayKeepsWindowHidden"] = !window.isVisible && NSApp.activationPolicy() == .accessory
+        let connectionError = "Synthetic connection failure (no VPN started)."
+        model.phase = .failed
+        model.error = connectionError
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        checks["trayConnectionErrorKeepsWindowHidden"] = !window.isVisible && NSApp.activationPolicy() == .accessory
+        checks["hiddenConnectionErrorRetained"] = model.error == connectionError && trayController.rootView.model.error == connectionError
+        trayController.rootView.openWindow()
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        checks["explicitOpenPresentsPendingError"] = window.isVisible && window.attachedSheet != nil && model.error == connectionError
+        model.error = nil
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        checks["connectionErrorCanBeDismissed"] = window.attachedSheet == nil
+        window.performClose(nil)
+        model.phase = .disconnected
+        togglePopover()
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        return checks
+    }
     private func runSmokeTest() async {
         // In-process integration check: uses real NSWindow / NSApplication objects,
         // but never starts VPNs, contacts the helper or reads user configuration.
@@ -209,6 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         checks["trayUsesSharedModel"] = trayController.rootView.model === model
         checks["trayHasUsableSize"] = popover.contentSize.width == 400 && popover.contentSize.height > 100
         try? await Task.sleep(nanoseconds: 250_000_000)
+        checks.merge(await checkTrayConnectionErrors()) { _, new in new }
         let disconnectedIcon = statusItem.button?.image?.tiffRepresentation
         var fixture = VPNProfile()
         fixture.name = "Example VPN"
@@ -244,7 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.uploadRate = 1024
         model.received = 1_048_576
         model.sent = 524_288
-        model.trafficHistory = (0..<60).map { index in
+        model.trafficHistory = (0..<60).map { (index: Int) -> AppModel.TrafficSample in
             .init(download: index % 7 == 0 ? Double(index * 180) : 0, upload: index % 9 == 0 ? Double(index * 70) : 0)
         }
         try? await Task.sleep(nanoseconds: 250_000_000)
